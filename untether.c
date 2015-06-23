@@ -6,6 +6,35 @@
 unsigned char datablob[116];
 char obfuscation_key[16] = "rgca/[204';b/[]/";
 
+/* sub_D91C */
+void *read_file_contents(const char *path, size_t *length)
+{
+  void *contents;
+
+  contents = NULL;
+  int fd = open(path, 0);
+  if ( fd >= 0 ) {
+    lseek(fd, 0, SEEK_END);
+    size_t file_length = lseek(fd, 0, SEEK_CUR);
+    lseek(fd, 0, SEEK_SET);
+    void *file_buffer = malloc(length);
+    if (file_buffer) {
+    	int ret;
+    	while ((ret = read(fd, fileBuffer, length)) == -1) {
+	  		if (*__error() != 35 && *__error() != 4) {
+        		free(fileBuffer);
+      		}
+    	}
+    	if (ret == 0) {
+    		*length = file_length;
+    		contents = file_buffer;
+    	}
+    }
+    if ( fd >= 0 ) close(fd);
+  }
+  return ret;
+}
+
 /* sub_c770 */
 mach_msg_return_t receive_mach_msg(mach_port_t rcv_name, mach_msg_header_t *msg, mach_msg_size_t rcv_size)
 {
