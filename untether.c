@@ -52,6 +52,36 @@ char * read_file(char *path, size_t *pSize)
 	return data;
 }
 
+/* sub_cc98 */
+int write_file(char *path, const void *buffer, size_t size)
+{
+	int fd;
+
+	fd = open(path, O_WRONLY|O_TRUNC|O_CREAT, 0644);
+	if ( fd < 0 )
+	{
+		return -1;
+	}
+	
+	if ( write(fd, buffer, size) > -1 )
+	{
+		close(fd);
+		return 0;
+	}
+
+	while ( *__error() == EAGAIN || *__error() == EINTR )
+	{
+		if ( write(fd, buffer, size) >= 0 )
+		{
+			close(fd);
+			return 0;
+		}
+	}
+	
+	close(fd);
+	return -1;
+}
+
 /* sub_cd04 */
 int copy_file(const char *dst, const char *src)
 {
