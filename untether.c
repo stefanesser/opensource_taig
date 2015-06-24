@@ -1,5 +1,7 @@
 #include <sys/fcntl.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <dirent.h>
 #include <mach/mach.h>
 #include <mach/message.h>
 #include <IOKit/IOKitLib.h>
@@ -75,6 +77,35 @@ int copy_file(const char *dst, const char *src)
 	close(fd_src);
 	close(fd_dst);
 	return 0;
+}
+
+/* sub_ce0c */
+int deltree(char *directory)
+{
+	DIR *dirh;
+	struct dirent *entry;
+	char path[2048];
+
+	dirh = opendir(directory);
+	if ( dirh == NULL ) {
+		return -1;
+	}
+	
+	for ( entry = readdir(dirh); entry; entry = readdir(dirh) )
+	{
+		if ( strcmp(&entry->d_name[0], ".") && strcmp(&entry->d_name[0], "..") ) {
+			strcpy(path, directory);
+			strcat(path, "/");
+			strcat(path, &entry->d_name[0]);
+			if ( entry->d_type == DT_DIR ) {
+				deltree(path);
+			} else {
+				unlink(path);
+			}
+		}
+	}
+	closedir(dirh);
+	return (rmdir(directory));
 }
 
 /* sub_cedc */
