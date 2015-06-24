@@ -16,6 +16,42 @@ mach_msg_return_t receive_mach_msg(mach_port_t rcv_name, mach_msg_header_t *msg,
 	return mach_msg(msg, MACH_RCV_MSG, 0, rcv_size, rcv_name, 0, 0);
 }
 
+/* sub_cc08 */
+char * read_file(char *path, size_t *pSize)
+{
+	size_t size;
+	char *data;
+	int fd;
+	
+	*pSize = 0;
+	
+	fd = open(path, O_RDONLY);
+	if (fd < 0) {
+		return 0;
+	}
+
+	lseek(fd, 0, SEEK_END);
+	size = lseek(fd, 0, SEEK_CUR);
+	lseek(fd, 0, SEEK_SET);
+	data = (char *) malloc(size);
+	if ( !data ) {
+		close (fd);
+		return 0;
+	}
+
+	while ( read(fd, data, size) == -1 )
+	{
+		if ( *__error() != EAGAIN && *__error() != EINTR )
+		{
+			free(data);
+			return 0;
+		}
+	}
+	*pSize = size;
+	close(fd);
+	return data;
+}
+
 /* sub_cd04 */
 int copy_file(const char *dst, const char *src)
 {
