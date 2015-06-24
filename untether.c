@@ -355,6 +355,48 @@ void deobfuscate_strings()
 	printf("string7: %s\n", buffer);
 }
 
+/* sub_119c4 */
+char * get_IOPMrootDomain()
+{
+	return "IOPMrootDomain";
+}
+
+/* sub_119d4 */
+char * get_IOHIDResource()
+{
+	return "IOHIDResource";
+}
+
+/* sub_119e4 */
+char * get_IOHIDLibUserClient()
+{
+	return "IOHIDLibUserClient";
+}
+
+/* sub_119f4 */
+char * get_IOHIDEventService()
+{
+	return "IOHIDEventService";
+}
+
+/* sub_11a04 */
+char * get_IOUserClientClass()
+{
+	return "IOUserClientClass";
+}
+
+/* sub_11a14 */
+char * get_ReportDescriptor()
+{
+	return "ReportDescriptor";
+}
+
+/* sub_11a24 */
+char * get_ReportInterval()
+{
+	return "ReportInterval";
+}
+
 /* start */
 int main(int argc, char **argv, char **envp)
 {
