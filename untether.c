@@ -1,3 +1,5 @@
+#include <sys/fcntl.h>
+#include <sys/stat.h>
 #include <mach/mach.h>
 #include <mach/message.h>
 #include <IOKit/IOKitLib.h>
@@ -10,6 +12,79 @@ char obfuscation_key[16] = "rgca/[204';b/[]/";
 mach_msg_return_t receive_mach_msg(mach_port_t rcv_name, mach_msg_header_t *msg, mach_msg_size_t rcv_size)
 {
 	return mach_msg(msg, MACH_RCV_MSG, 0, rcv_size, rcv_name, 0, 0);
+}
+
+/* sub_cd04 */
+int copy_file(const char *dst, const char *src)
+{
+	int fd_src;
+	int fd_dst;
+	int bytes_read, bytes_written;
+	int retval;
+	char buffer[1024];
+
+	fd_src = open(src, O_RDONLY);
+	if ( fd_src < 0 ) {
+		return -1;
+	}
+	fd_dst = open(dst, O_WRONLY|O_TRUNC|O_CREAT, 0644);
+	if ( fd_dst < 0 ) {
+		close(fd_src);
+		return -1;
+	}
+	while ( 1 )
+	{
+		bytes_read = read(fd_src, buffer, sizeof(buffer));
+		if ( bytes_read <= -1 )
+		{
+			while ( *__error() == EAGAIN || *__error() == EINTR )
+			{
+				bytes_read = read(fd_src, buffer, sizeof(buffer));
+				if (bytes_read <= -1) {
+					close(fd_src);
+					close(fd_dst);
+					return -1;
+				}
+			}
+		}
+	  
+		if ( bytes_read == 0 )
+			break;
+
+		bytes_written = write(fd_dst, buffer, bytes_read);
+		if ( bytes_written <= -1 )
+		{
+			while ( *__error() == EAGAIN || *__error() == EINTR )
+			{
+				bytes_written = write(fd_dst, buffer, bytes_read);
+				if (bytes_written <= -1) {
+					close(fd_src);
+					close(fd_dst);
+					return -1;
+				}
+			}
+		}
+		
+		if ( bytes_written != bytes_read ) {
+			close(fd_src);
+			close(fd_dst);
+			return -1;
+		}
+	}
+ 
+	close(fd_src);
+	close(fd_dst);
+	return 0;
+}
+
+/* sub_cedc */
+int copy_dylibs()
+{
+	mkdir("/var/mobile/Media/install", 0777u);
+	chown("/var/mobile/Media/install", 0765u, 0765u);
+	copy_file("/var/mobile/Media/install/libmis.dylib", "/usr/lib/libmis.dylib");
+	copy_file("/var/mobile/Media/install/xpcd_cache.dylib", "/usr/lib/xpcd_cache.dylib");
+	return 0;
 }
 
 /* sub_e568 */
