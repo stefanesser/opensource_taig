@@ -252,7 +252,7 @@ uint32_t find_invalidate_tlb(uint32_t region, uint8_t* kdata, size_t ksize)
 }
 
 /* INLINED CODE */
-static uint32_t bit_range(uint32_t x, int start, int end)
+uint32_t bit_range(uint32_t x, int start, int end)
 {
     x = (x << (31 - start)) >> (31 - start);
     x = (x >> end);
@@ -260,13 +260,13 @@ static uint32_t bit_range(uint32_t x, int start, int end)
 }
 
 /* INLINED CODE */
-static uint32_t ror(uint32_t x, int places)
+uint32_t ror(uint32_t x, int places)
 {
     return (x >> places) | (x << (32 - places));
 }
 
 /* INLINED CODE */
-static int thumb_expand_imm_c(uint16_t imm12)
+int thumb_expand_imm_c(uint16_t imm12)
 {
     if(bit_range(imm12, 11, 10) == 0)
     {
@@ -290,8 +290,99 @@ static int thumb_expand_imm_c(uint16_t imm12)
     }
 }
 
+/* sub_ec5c - (C) code from planetbeing's patchfinder */
+int insn_add_reg_rm(uint16_t* i)
+{
+    if((*i & 0xFE00) == 0x1800)
+        return (*i >> 6) & 7;
+    else if((*i & 0xFF00) == 0x4400)
+        return (*i >> 3) & 0xF;
+    else if((*i & 0xFFE0) == 0xEB00)
+        return *(i + 1) & 0xF;
+    else
+        return 0;
+}
+
+/* sub_e834 - (C) code from planetbeing's patchfinder */
+uint16_t* find_literal_ref(uint32_t region, uint8_t* kdata, size_t ksize, uint16_t* insn, uint32_t address)
+{
+    uint16_t* current_instruction = insn;
+    uint32_t value[16];
+    memset(value, 0, sizeof(value));
+
+    while((uintptr_t)current_instruction < (uintptr_t)(kdata + ksize))
+    {
+        if(insn_is_mov_imm(current_instruction))
+        {
+            value[insn_mov_imm_rd(current_instruction)] = insn_mov_imm_imm(current_instruction);
+        } else if(insn_is_ldr_literal(current_instruction))
+        {
+            uintptr_t literal_address  = (uintptr_t)kdata + ((((uintptr_t)current_instruction - (uintptr_t)kdata) + 4) & 0xFFFFFFFC) + insn_ldr_literal_imm(current_instruction);
+            if(literal_address >= (uintptr_t)kdata && (literal_address + 4) <= ((uintptr_t)kdata + ksize))
+            {
+                value[insn_ldr_literal_rt(current_instruction)] = *(uint32_t*)(literal_address);
+            }
+        } else if(insn_is_movt(current_instruction))
+        {
+            value[insn_movt_rd(current_instruction)] |= insn_movt_imm(current_instruction) << 16;
+        } else if(insn_is_add_reg(current_instruction))
+        {
+            int reg = insn_add_reg_rd(current_instruction);
+            if(insn_add_reg_rm(current_instruction) == 15 && insn_add_reg_rn(current_instruction) == reg)
+            {
+                value[reg] += ((uintptr_t)current_instruction - (uintptr_t)kdata) + 4;
+                if(value[reg] == address)
+                {
+                    return current_instruction;
+                }
+            }
+        }
+
+        current_instruction += insn_is_32bit(current_instruction) ? 2 : 1;
+    }
+
+    return NULL;
+}
+
+/* sub_ec94 - (C) code from planetbeing's patchfinder */
+int insn_add_reg_rd(uint16_t* i)
+{
+    if((*i & 0xFE00) == 0x1800)
+        return (*i & 7);
+    else if((*i & 0xFF00) == 0x4400)
+        return (*i & 7) | ((*i & 0x80) >> 4) ;
+    else if((*i & 0xFFE0) == 0xEB00)
+        return (*(i + 1) >> 8) & 0xF;
+    else
+        return 0;
+}
+
+/* sub_104e4 - (C) code from planetbeing's patchfinder */
+int insn_add_reg_rn(uint16_t* i)
+{
+    if((*i & 0xFE00) == 0x1800)
+        return ((*i >> 3) & 7);
+    else if((*i & 0xFF00) == 0x4400)
+        return (*i & 7) | ((*i & 0x80) >> 4) ;
+    else if((*i & 0xFFE0) == 0xEB00)
+        return (*i & 0xF);
+    else
+        return 0;
+}
+
+/* sub_104a8 - (C) code from planetbeing's patchfinder */
+int insn_ldr_literal_imm(uint16_t* i)
+{
+    if((*i & 0xF800) == 0x4800)
+        return (*i & 0xF) << 2;
+    else if((*i & 0xFF7F) == 0xF85F)
+        return (*(i + 1) & 0xFFF) * (((*i & 0x0800) == 0x0800) ? 1 : -1);
+    else
+        return 0;
+}
+
 /* sub_f920 - (C) code from planetbeing's patchfinder */
-static int insn_is_mov_imm(uint16_t* i)
+int insn_is_mov_imm(uint16_t* i)
 {
     if((*i & 0xF800) == 0x2000)
         return 1;
@@ -304,7 +395,7 @@ static int insn_is_mov_imm(uint16_t* i)
 }
 
 /* sub_f964 - (C) code from planetbeing's patchfinder */
-static int insn_mov_imm_imm(uint16_t* i)
+int insn_mov_imm_imm(uint16_t* i)
 {
     if((*i & 0xF800) == 0x2000)
         return *i & 0xF;
@@ -317,7 +408,7 @@ static int insn_mov_imm_imm(uint16_t* i)
 }
 
 /* sub_fa18 - (C) code from planetbeing's patchfinder */
-static int insn_mov_imm_rd(uint16_t* i)
+int insn_mov_imm_rd(uint16_t* i)
 {
     if((*i & 0xF800) == 0x2000)
         return (*i >> 8) & 7;
