@@ -251,6 +251,86 @@ uint32_t find_invalidate_tlb(uint32_t region, uint8_t* kdata, size_t ksize)
     return ((uintptr_t)ptr) - ((uintptr_t)kdata);
 }
 
+/* INLINED CODE */
+static uint32_t bit_range(uint32_t x, int start, int end)
+{
+    x = (x << (31 - start)) >> (31 - start);
+    x = (x >> end);
+    return x;
+}
+
+/* INLINED CODE */
+static uint32_t ror(uint32_t x, int places)
+{
+    return (x >> places) | (x << (32 - places));
+}
+
+/* INLINED CODE */
+static int thumb_expand_imm_c(uint16_t imm12)
+{
+    if(bit_range(imm12, 11, 10) == 0)
+    {
+        switch(bit_range(imm12, 9, 8))
+        {
+            case 0:
+                return bit_range(imm12, 7, 0);
+            case 1:
+                return (bit_range(imm12, 7, 0) << 16) | bit_range(imm12, 7, 0);
+            case 2:
+                return (bit_range(imm12, 7, 0) << 24) | (bit_range(imm12, 7, 0) << 8);
+            case 3:
+                return (bit_range(imm12, 7, 0) << 24) | (bit_range(imm12, 7, 0) << 16) | (bit_range(imm12, 7, 0) << 8) | bit_range(imm12, 7, 0);
+            default:
+                return 0;
+        }
+    } else
+    {
+        uint32_t unrotated_value = 0x80 | bit_range(imm12, 6, 0);
+        return ror(unrotated_value, bit_range(imm12, 11, 7));
+    }
+}
+
+/* sub_f920 - (C) code from planetbeing's patchfinder */
+static int insn_is_mov_imm(uint16_t* i)
+{
+    if((*i & 0xF800) == 0x2000)
+        return 1;
+    else if((*i & 0xFBEF) == 0xF04F && (*(i + 1) & 0x8000) == 0)
+        return 1;
+    else if((*i & 0xFBF0) == 0xF240 && (*(i + 1) & 0x8000) == 0)
+        return 1;
+    else
+        return 0;
+}
+
+/* sub_f964 - (C) code from planetbeing's patchfinder */
+static int insn_mov_imm_imm(uint16_t* i)
+{
+    if((*i & 0xF800) == 0x2000)
+        return *i & 0xF;
+    else if((*i & 0xFBEF) == 0xF04F && (*(i + 1) & 0x8000) == 0)
+        return thumb_expand_imm_c(((*i & 0x0400) << 1) | ((*(i + 1) & 0x7000) >> 4) | (*(i + 1) & 0xFF));
+    else if((*i & 0xFBF0) == 0xF240 && (*(i + 1) & 0x8000) == 0)
+        return ((*i & 0xF) << 12) | ((*i & 0x0400) << 1) | ((*(i + 1) & 0x7000) >> 4) | (*(i + 1) & 0xFF);
+    else
+        return 0;
+}
+
+/* sub_fa18 - (C) code from planetbeing's patchfinder */
+static int insn_mov_imm_rd(uint16_t* i)
+{
+    if((*i & 0xF800) == 0x2000)
+        return (*i >> 8) & 7;
+    else if((*i & 0xFBEF) == 0xF04F && (*(i + 1) & 0x8000) == 0)
+        return (*(i + 1) >> 8) & 0xF;
+    else if((*i & 0xFBF0) == 0xF240 && (*(i + 1) & 0x8000) == 0)
+        return (*(i + 1) >> 8) & 0xF;
+    else
+        return 0;
+}
+
+
+
 /* InitFunc_0 */
 
 __attribute__((constructor))
