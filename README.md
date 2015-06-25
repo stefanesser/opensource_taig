@@ -23,3 +23,8 @@ taig binary contains a number of obfuscated strings:
 * ReportDescriptor
 * ReportInterval
 
+Components found in the untether so far:
+
+* planetbeing's patchfinder - https://github.com/planetbeing/ios-jailbreak-patchfinder/blob/master/patchfinder.c
+* libtar
+* google-toolbox-for-mac - https://code.google.com/p/google-toolbox-for-mac/
