@@ -52,6 +52,49 @@ char * read_file(char *path, size_t *pSize)
 	return data;
 }
 
+//added 2 more to the orginal functions
+int sub_E5C8(int a, int b, int c)
+{
+   int d, result;
+   d = memmem(b, c, &unk_1B4A0, 4);
+   if(d){
+     result = d + 1 - b;
+       }
+    else
+    { 
+       result = 0;
+    }
+    return result;
+}
+
+int sub_E5F4(int a, int b, int c)
+{
+   int d, result;
+   d = memmem(b, c, "\bFpG\bhpG", 4);
+   if(d){
+     result = d + 1 - b;
+       }
+    else
+    { 
+       result = 0;
+    }
+    return result;
+}
+
+int sub_E620(int a, int b, int c)
+{
+   int d, result;
+   d = memmem(b, c, "\bFpG, 4);
+   if(d){
+     result = d + 1 - b;
+       }
+    else
+    { 
+       result = 0;
+    }
+    return result;
+}
+
 /* sub_cc98 */
 int write_file(char *path, const void *buffer, size_t size)
 {
