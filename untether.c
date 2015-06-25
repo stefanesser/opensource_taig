@@ -398,6 +398,152 @@ uint16_t* find_literal_ref(uint32_t region, uint8_t* kdata, size_t ksize, uint16
     return NULL;
 }
 
+/* sub_ea4c - (C) code from planetbeing's patchfinder */
+uint16_t* find_last_insn_matching(uint32_t region, uint8_t* kdata, size_t ksize, uint16_t* current_instruction, int (*match_func)(uint16_t*))
+{
+    while((uintptr_t)current_instruction > (uintptr_t)kdata)
+    {
+        if(insn_is_32bit(current_instruction - 2) && !insn_is_32bit(current_instruction - 3))
+        {
+            current_instruction -= 2;
+        } else
+        {
+            --current_instruction;
+        }
+
+        if(match_func(current_instruction))
+        {
+            return current_instruction;
+        }
+    }
+
+    return NULL;
+}
+
+/* INLINED CODE (C) code from planetbeing's patchfinder */
+int insn_is_bl(uint16_t* i)
+{
+    if((*i & 0xf800) == 0xf000 && (*(i + 1) & 0xd000) == 0xd000)
+        return 1;
+    else if((*i & 0xf800) == 0xf000 && (*(i + 1) & 0xd001) == 0xc000)
+        return 1;
+    else
+        return 0;
+}
+
+/* sub_f578 - (C) code from planetbeing's patchfinder */
+int insn_is_push(uint16_t* i)
+{
+    if((*i & 0xFE00) == 0xB400)
+        return 1;
+    else if(*i == 0xE92D)
+        return 1;
+    else if(*i == 0xF84D && (*(i + 1) & 0x0FFF) == 0x0D04)
+        return 1;
+    else
+        return 0;
+}
+
+/* sub_ecd4 - (C) code from planetbeing's patchfinder */
+uint32_t find_proc_enforce(uint32_t region, uint8_t* kdata, size_t ksize)
+{
+    // Find the description.
+    uint8_t* proc_enforce_description = memmem(kdata, ksize, "Enforce MAC policy on process operations", sizeof("Enforce MAC policy on process operations"));
+    if(!proc_enforce_description)
+        return 0;
+
+    // Find what references the description.
+    uint32_t proc_enforce_description_address = region + ((uintptr_t)proc_enforce_description - (uintptr_t)kdata);
+    uint8_t* proc_enforce_description_ptr = memmem(kdata, ksize, &proc_enforce_description_address, sizeof(proc_enforce_description_address));
+    if(!proc_enforce_description_ptr)
+        return 0;
+
+    // Go up the struct to find the pointer to the actual data element.
+    uint32_t* proc_enforce_ptr = (uint32_t*)(proc_enforce_description_ptr - (5 * sizeof(uint32_t)));
+    return *proc_enforce_ptr - region;
+}
+
+/* sub_ed1c - code in style of planetbeing's patchfinder */
+uint32_t find_vnode_enforce(uint32_t region, uint8_t* kdata, size_t ksize)
+{
+    // Find the description.
+    uint8_t* proc_enforce_description = memmem(kdata, ksize, "Enforce MAC policy on vnode operations", sizeof("Enforce MAC policy on vnode operations"));
+    if(!proc_enforce_description)
+        return 0;
+
+    // Find what references the description.
+    uint32_t proc_enforce_description_address = region + ((uintptr_t)proc_enforce_description - (uintptr_t)kdata);
+    uint8_t* proc_enforce_description_ptr = memmem(kdata, ksize, &proc_enforce_description_address, sizeof(proc_enforce_description_address));
+    if(!proc_enforce_description_ptr)
+        return 0;
+
+    // Go up the struct to find the pointer to the actual data element.
+    uint32_t* proc_enforce_ptr = (uint32_t*)(proc_enforce_description_ptr - (5 * sizeof(uint32_t)));
+    return *proc_enforce_ptr - region;
+}
+
+/* sub_ea9c - (C) code from planetbeing's patchfinder */
+static uint32_t find_pc_rel_value(uint32_t region, uint8_t* kdata, size_t ksize, uint16_t* insn, int reg)
+{
+    // Find the last instruction that completely wiped out this register
+    int found = 0;
+    uint16_t* current_instruction = insn;
+    while((uintptr_t)current_instruction > (uintptr_t)kdata)
+    {
+        if(insn_is_32bit(current_instruction - 2))
+        {
+            current_instruction -= 2;
+        } else
+        {
+            --current_instruction;
+        }
+
+        if(insn_is_mov_imm(current_instruction) && insn_mov_imm_rd(current_instruction) == reg)
+        {
+            found = 1;
+            break;
+        }
+
+        if(insn_is_ldr_literal(current_instruction) && insn_ldr_literal_rt(current_instruction) == reg)
+        {
+            found = 1;
+            break;
+        }
+    }
+
+    if(!found)
+        return 0;
+
+    // Step through instructions, executing them as a virtual machine, only caring about instructions that affect the target register and are commonly used for PC-relative addressing.
+    uint32_t value = 0;
+    while((uintptr_t)current_instruction < (uintptr_t)insn)
+    {
+        if(insn_is_mov_imm(current_instruction) && insn_mov_imm_rd(current_instruction) == reg)
+        {
+            value = insn_mov_imm_imm(current_instruction);
+        } else if(insn_is_ldr_literal(current_instruction) && insn_ldr_literal_rt(current_instruction) == reg)
+        {
+            value = *(uint32_t*)(kdata + (((((uintptr_t)current_instruction - (uintptr_t)kdata) + 4) & 0xFFFFFFFC) + insn_ldr_literal_imm(current_instruction)));
+        } else if(insn_is_movt(current_instruction) && insn_movt_rd(current_instruction) == reg)
+        {
+            value |= insn_movt_imm(current_instruction) << 16;
+        } else if(insn_is_add_reg(current_instruction) && insn_add_reg_rd(current_instruction) == reg)
+        {
+            if(insn_add_reg_rm(current_instruction) != 15 || insn_add_reg_rn(current_instruction) != reg)
+            {
+                // Can't handle this kind of operation!
+                return 0;
+            }
+
+            value += ((uintptr_t)current_instruction - (uintptr_t)kdata) + 4;
+        }
+
+        current_instruction += insn_is_32bit(current_instruction) ? 2 : 1;
+    }
+
+    return value;
+}
+
 /* sub_e888 - (C) code from planetbeing's patchfinder */
 uint32_t find_pmap_location(uint32_t region, uint8_t* kdata, size_t ksize)
 {
