@@ -303,6 +303,60 @@ int insn_add_reg_rm(uint16_t* i)
         return 0;
 }
 
+/* INLINED CODE from planetbeing's patchfinder */
+int insn_is_movt(uint16_t* i)
+{
+    return (*i & 0xFBF0) == 0xF2C0 && (*(i + 1) & 0x8000) == 0;
+}
+
+/* INLINED CODE from planetbeing's patchfinder */
+int insn_movt_rd(uint16_t* i)
+{
+    return (*(i + 1) >> 8) & 0xF;
+}
+
+/* INLINED CODE from planetbeing's patchfinder */
+int insn_movt_imm(uint16_t* i)
+{
+    return ((*i & 0xF) << 12) | ((*i & 0x0400) << 1) | ((*(i + 1) & 0x7000) >> 4) | (*(i + 1) & 0xFF);
+}
+
+/* INLINED CODE from planetbeing's patchfinder */
+int insn_is_32bit(uint16_t* i)
+{
+    return (*i & 0xe000) == 0xe000 && (*i & 0x1800) != 0x0;
+}
+
+/* INLINED CODE from planetbeing's patchfinder */
+int insn_is_add_reg(uint16_t* i)
+{
+    if((*i & 0xFE00) == 0x1800)
+        return 1;
+    else if((*i & 0xFF00) == 0x4400)
+        return 1;
+    else if((*i & 0xFFE0) == 0xEB00)
+        return 1;
+    else
+        return 0;
+}
+
+/* INLINED CODE from planetbeing's patchfinder */
+int insn_is_ldr_literal(uint16_t* i)
+{
+    return (*i & 0xF800) == 0x4800 || (*i & 0xFF7F) == 0xF85F;
+}
+
+/* INLINED CODE from planetbeing's patchfinder */
+int insn_ldr_literal_rt(uint16_t* i)
+{
+    if((*i & 0xF800) == 0x4800)
+        return (*i >> 8) & 7;
+    else if((*i & 0xFF7F) == 0xF85F)
+        return (*(i + 1) >> 12) & 0xF;
+    else
+        return 0;
+}
+
 /* sub_e834 - (C) code from planetbeing's patchfinder */
 uint16_t* find_literal_ref(uint32_t region, uint8_t* kdata, size_t ksize, uint16_t* insn, uint32_t address)
 {
