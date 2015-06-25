@@ -196,6 +196,61 @@ void setup_watchdog_timer(int value)
 	}
 }
 
+/* sub_e5c8 - (C) code from planetbeing's patchfinder */
+uint32_t find_str_r1_r2_bx_lr(uint32_t region, uint8_t* kdata, size_t ksize)
+{
+    const uint8_t search[] = {0x11, 0x60, 0x70, 0x47};
+    void* ptr = memmem(kdata, ksize, search, sizeof(search)) + 1;
+    if(!ptr)
+        return 0;
+
+    return ((uintptr_t)ptr) - ((uintptr_t)kdata);
+}
+
+/* sub_e5f4 - code in style of planetbeing's patchfinder */
+uint32_t find_mov_r0_r1_bx_lr(uint32_t region, uint8_t* kdata, size_t ksize)
+{
+    const uint8_t search[] = {0x08, 0x46, 0x70, 0x47};
+    void* ptr = memmem(kdata, ksize, search, sizeof(search)) + 1;
+    if(!ptr)
+        return 0;
+
+    return ((uintptr_t)ptr) - ((uintptr_t)kdata);
+}
+
+/* sub_e620 - code in style of planetbeing's patchfinder */
+uint32_t find_ldr_r0_r1_bx_lr(uint32_t region, uint8_t* kdata, size_t ksize)
+{
+    const uint8_t search[] = {0x08, 0x68, 0x70, 0x47};
+    void* ptr = memmem(kdata, ksize, search, sizeof(search)) + 1;
+    if(!ptr)
+        return 0;
+
+    return ((uintptr_t)ptr) - ((uintptr_t)kdata);
+}
+
+/* sub_e64c - (C) code from planetbeing's patchfinder */
+uint32_t find_flush_dcache(uint32_t region, uint8_t* kdata, size_t ksize)
+{
+    const uint8_t search[] = {0x00, 0x00, 0xA0, 0xE3, 0x5E, 0x0F, 0x07, 0xEE};
+    void* ptr = memmem(kdata, ksize, search, sizeof(search));
+    if(!ptr)
+        return 0;
+
+    return ((uintptr_t)ptr) - ((uintptr_t)kdata);
+}
+
+/* sub_e674 - (C) code from planetbeing's patchfinder */
+uint32_t find_invalidate_tlb(uint32_t region, uint8_t* kdata, size_t ksize)
+{
+    const uint8_t search[] = {0x00, 0x00, 0xA0, 0xE3, 0x17, 0x0F, 0x08, 0xEE};
+    void* ptr = memmem(kdata, ksize, search, sizeof(search));
+    if(!ptr)
+        return 0;
+
+    return ((uintptr_t)ptr) - ((uintptr_t)kdata);
+}
+
 /* InitFunc_0 */
 
 __attribute__((constructor))
