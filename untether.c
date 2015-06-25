@@ -398,6 +398,86 @@ uint16_t* find_literal_ref(uint32_t region, uint8_t* kdata, size_t ksize, uint16
     return NULL;
 }
 
+/* sub_e888 - (C) code from planetbeing's patchfinder */
+uint32_t find_pmap_location(uint32_t region, uint8_t* kdata, size_t ksize)
+{
+    // Find location of the pmap_map_bd string.
+    uint8_t* pmap_map_bd = memmem(kdata, ksize, "\"pmap_map_bd\"", sizeof("\"pmap_map_bd\""));
+    if(!pmap_map_bd)
+        return 0;
+
+    // Find a reference to the pmap_map_bd string. That function also references kernel_pmap
+    uint16_t* ptr = find_literal_ref(region, kdata, ksize, (uint16_t*) kdata, (uintptr_t)pmap_map_bd - (uintptr_t)kdata);
+    if(!ptr)
+        return 0;
+
+    // Find the end of it.
+    const uint8_t search_function_end[] = {0xF0, 0xBD};
+    ptr = memmem(ptr, ksize - ((uintptr_t)ptr - (uintptr_t)kdata), search_function_end, sizeof(search_function_end));
+    if(!ptr)
+        return 0;
+
+    // Find the last BL before the end of it. The third argument to it should be kernel_pmap
+    uint16_t* bl = find_last_insn_matching(region, kdata, ksize, ptr, insn_is_bl);
+    if(!bl)
+        return 0;
+
+    // Find the last LDR R2, [R*] before it that's before any branches. If there are branches, then we have a version of the function that assumes kernel_pmap instead of being passed it.
+    uint16_t* ldr_r2 = NULL;
+    uint16_t* current_instruction = bl;
+    while((uintptr_t)current_instruction > (uintptr_t)kdata)
+    {
+        if(insn_is_32bit(current_instruction - 2) && !insn_is_32bit(current_instruction - 3))
+        {
+            current_instruction -= 2;
+        } else
+        {
+            --current_instruction;
+        }
+
+        if(insn_ldr_imm_rt(current_instruction) == 2 && insn_ldr_imm_imm(current_instruction) == 0)
+        {
+            ldr_r2 = current_instruction;
+            break;
+        } else if(insn_is_b_conditional(current_instruction) || insn_is_b_unconditional(current_instruction))
+        {
+            break;
+        }
+    }
+
+    // The function has a third argument, which must be kernel_pmap. Find out its address
+    if(ldr_r2)
+        return find_pc_rel_value(region, kdata, ksize, ldr_r2, insn_ldr_imm_rn(ldr_r2));
+
+    // The function has no third argument, Follow the BL.
+    uint32_t imm32 = insn_bl_imm32(bl);
+    uint32_t target = ((uintptr_t)bl - (uintptr_t)kdata) + 4 + imm32;
+    if(target > ksize)
+        return 0;
+
+    // Find the first PC-relative reference in this function.
+    int found = 0;
+    int rd;
+    current_instruction = (uint16_t*)(kdata + target);
+    while((uintptr_t)current_instruction < (uintptr_t)(kdata + ksize))
+    {
+        if(insn_is_add_reg(current_instruction) && insn_add_reg_rm(current_instruction) == 15)
+        {
+            found = 1;
+            rd = insn_add_reg_rd(current_instruction);
+            current_instruction += insn_is_32bit(current_instruction) ? 2 : 1;
+            break;
+        }
+
+        current_instruction += insn_is_32bit(current_instruction) ? 2 : 1;
+    }
+
+    if(!found)
+        return 0;
+
+    return find_pc_rel_value(region, kdata, ksize, current_instruction, rd);
+}
+
 /* sub_ec94 - (C) code from planetbeing's patchfinder */
 int insn_add_reg_rd(uint16_t* i)
 {
